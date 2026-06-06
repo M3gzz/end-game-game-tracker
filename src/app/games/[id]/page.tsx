@@ -62,8 +62,13 @@ export default function GameDetailsPage() {
     setMounted(true);
   }, []);
 
-  // Locate current game
-  const game = PRELOADED_GAMES.find(g => g.id === gameId);
+  // Locate current game (including custom/synced games, with robust app ID fallback)
+  const cleanId = gameId.replace(/^steam-/, '');
+  const game = PRELOADED_GAMES.find(g => g.id === gameId) || 
+               (cleanId ? PRELOADED_GAMES.find(g => g.steamAppId && String(g.steamAppId) === cleanId) : undefined) ||
+               (cleanId ? PRELOADED_GAMES.find(g => g.coverUrl?.match(/\/apps\/(\d+)\//)?.[1] === cleanId) : undefined) ||
+               progress.customGames?.[gameId] ||
+               (cleanId ? progress.customGames?.[`steam-${cleanId}`] : undefined);
   const steamAppId = game?.steamAppId || game?.coverUrl?.match(/\/apps\/(\d+)\//)?.[1];
 
   // Auto-sync achievements with Steam on mount if a Steam ID is connected
@@ -285,8 +290,8 @@ export default function GameDetailsPage() {
               />
             </div>
             <div className="min-w-0 pr-4">
-              <span className="text-[10px] bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-2 py-0.5 rounded uppercase tracking-wider">
-                {game.platforms[0]}
+              <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wider ${game.steamAppId ? 'bg-blue-500/10 border border-blue-500/20 text-blue-400' : 'bg-zinc-800 border border-zinc-700 text-zinc-400'}`}>
+                {game.steamAppId ? 'Steam' : (game.platforms[0] || 'Custom')}
               </span>
               <h2 className="text-2xl sm:text-3xl md:text-4xl font-black text-white mt-2 drop-shadow-md truncate">
                 {game.title}

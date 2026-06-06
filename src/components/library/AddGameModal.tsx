@@ -4,6 +4,7 @@ import React from 'react';
 import { useTrackerStore } from '@/store/trackerStore';
 import { PRELOADED_GAMES } from '@/data/preloadedGames';
 import { X, Search, Plus, Check, Gamepad2, ArrowRight, RefreshCw } from 'lucide-react';
+import { findPreloadedGameBySteamId } from '@/utils/steamSync';
 
 const getRandomDifficulty = () => Math.floor(Math.random() * 5) + 4; // 4-8 difficulty
 const getRandomHours = () => Math.floor(Math.random() * 40) + 20;   // 20-60 hours
@@ -90,10 +91,8 @@ export default function AddGameModal({ isOpen, onClose }: AddGameModalProps) {
   };
 
   const handleAddSteamGame = (item: SteamSearchResultItem) => {
-    // If the synced game exists in the starter catalogue (like Cyberpunk 2077), map it directly
-    const matchingPreloaded = PRELOADED_GAMES.find(
-      g => g.steamAppId && String(g.steamAppId) === String(item.id)
-    );
+    // If the synced game exists in the starter catalogue, map it directly
+    const matchingPreloaded = findPreloadedGameBySteamId(item.id);
 
     const gameId = matchingPreloaded ? matchingPreloaded.id : `steam-${item.id}`;
     

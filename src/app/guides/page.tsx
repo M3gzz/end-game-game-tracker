@@ -6,7 +6,7 @@ import { PRELOADED_GAMES } from '@/data/preloadedGames';
 import { 
   Trophy, Search, Clock, ShieldAlert, BookOpen, ChevronRight, 
   CheckCircle2, Star, Sparkles, Compass, AlertTriangle, 
-  MapPin, Check, Sliders, Award, BrainCircuit, Wrench
+  MapPin, Check, Sliders, Award, BrainCircuit, Wrench, X
 } from 'lucide-react';
 
 // Custom rich detailed 4-stage roadmaps for the primary preloaded games
@@ -276,6 +276,7 @@ export default function GuidesPage() {
   const { progress, toggleAchievement } = useTrackerStore();
   const [selectedGameId, setSelectedGameId] = React.useState<string>(PRELOADED_GAMES[0].id);
   const [searchQuery, setSearchQuery] = React.useState('');
+  const [gameSearchQuery, setGameSearchQuery] = React.useState('');
   const [expandedTrophyId, setExpandedTrophyId] = React.useState<string | null>(null);
   
   // Custom filter tags for trophies
@@ -300,6 +301,16 @@ export default function GuidesPage() {
     }
     return list;
   }, [progress.customGames]);
+
+  // Filter available games based on search query
+  const filteredAvailableGames = React.useMemo(() => {
+    const query = gameSearchQuery.toLowerCase().trim();
+    if (!query) return availableGames;
+    return availableGames.filter(game => 
+      game.title.toLowerCase().includes(query) || 
+      game.developer?.toLowerCase().includes(query)
+    );
+  }, [availableGames, gameSearchQuery]);
 
   const filteredTrophies = React.useMemo(() => {
     if (!selectedGame) return [];
@@ -425,38 +436,64 @@ export default function GuidesPage() {
         
         {/* Left Pane: Game Selection & Filters */}
         <div className="lg:col-span-3 space-y-4">
-          <div className="bg-zinc-900/20 border border-zinc-800/80 rounded-3xl p-4 space-y-3 backdrop-blur-sm shadow-xl">
+          <div className="bg-zinc-900/20 border border-zinc-800/80 rounded-3xl p-4 space-y-3 backdrop-blur-sm shadow-xl flex flex-col gap-3">
             <h3 className="text-[11px] font-extrabold uppercase tracking-widest text-zinc-500 flex items-center gap-2 border-b border-zinc-900 pb-2">
               <BookOpen className="w-4 h-4 text-purple-500" />
               Available Guides
             </h3>
             
-            <div className="flex flex-col gap-2 max-h-[45vh] overflow-y-auto pr-1 custom-scrollbar">
-              {availableGames.map((game) => (
+            {/* Game Search Bar */}
+            <div className="relative px-0.5">
+              <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-zinc-500" />
+              <input
+                type="text"
+                value={gameSearchQuery}
+                onChange={(e) => setGameSearchQuery(e.target.value)}
+                placeholder="Search games..."
+                className="w-full bg-zinc-950 border border-zinc-850 rounded-xl pl-8.5 pr-8 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500 transition-colors"
+              />
+              {gameSearchQuery && (
                 <button
-                  key={game.id}
-                  onClick={() => {
-                    setSelectedGameId(game.id);
-                    setExpandedTrophyId(null);
-                  }}
-                  className={`w-full text-left p-2.5 rounded-2xl border text-xs font-extrabold transition-all flex items-center gap-3 hover:scale-[1.01] cursor-pointer ${
-                    selectedGameId === game.id
-                      ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.05)]'
-                      : 'bg-zinc-950 border-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
-                  }`}
+                  type="button"
+                  onClick={() => setGameSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-zinc-400 hover:text-zinc-250 cursor-pointer p-0.5"
                 >
-                  <div className="w-8 h-11 rounded-lg bg-zinc-900 overflow-hidden shrink-0 border border-zinc-800">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={game.coverUrl} alt={game.title} className="w-full h-full object-cover" />
-                  </div>
-                  <div className="truncate min-w-0">
-                    <p className="truncate text-zinc-200 font-bold">{game.title}</p>
-                    <p className="text-[9px] text-zinc-500 font-semibold truncate mt-0.5">{game.developer}</p>
-                  </div>
+                  <X className="w-3.5 h-3.5" />
                 </button>
-              ))}
+              )}
+            </div>
+            
+            <div className="flex flex-col gap-2 max-h-[45vh] overflow-y-auto pr-1 custom-scrollbar">
+              {filteredAvailableGames.length === 0 ? (
+                <div className="text-xs text-zinc-500 italic text-center py-4">No matching games found.</div>
+              ) : (
+                filteredAvailableGames.map((game) => (
+                  <button
+                    key={game.id}
+                    onClick={() => {
+                      setSelectedGameId(game.id);
+                      setExpandedTrophyId(null);
+                    }}
+                    className={`w-full text-left p-2.5 rounded-2xl border text-xs font-extrabold transition-all flex items-center gap-3 hover:scale-[1.01] cursor-pointer ${
+                      selectedGameId === game.id
+                        ? 'bg-purple-600/10 border-purple-500 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.05)]'
+                        : 'bg-zinc-950 border-zinc-900 text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                    }`}
+                  >
+                    <div className="w-8 h-11 rounded-lg bg-zinc-900 overflow-hidden shrink-0 border border-zinc-800">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={game.coverUrl} alt={game.title} className="w-full h-full object-cover" />
+                    </div>
+                    <div className="truncate min-w-0">
+                      <p className="truncate text-zinc-200 font-bold">{game.title}</p>
+                      <p className="text-[9px] text-zinc-500 font-semibold truncate mt-0.5">{game.developer}</p>
+                    </div>
+                  </button>
+                ))
+              )}
             </div>
           </div>
+
           
           {/* Trophy Explorer Filters */}
           <div className="bg-zinc-900/20 border border-zinc-800/80 rounded-3xl p-4 space-y-4 backdrop-blur-sm shadow-xl">

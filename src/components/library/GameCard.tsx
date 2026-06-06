@@ -124,7 +124,14 @@ export default function GameCard({ game }: GameCardProps) {
             <h3 className="font-extrabold text-white text-base truncate drop-shadow-md group-hover:text-blue-400 transition-colors">
               {game.title}
             </h3>
-            <p className="text-xs text-zinc-400 truncate mt-0.5 drop-shadow-sm">{game.developer}</p>
+            <div className="flex items-center gap-1.5 mt-0.5">
+              <p className="text-xs text-zinc-400 truncate drop-shadow-sm">{game.developer}</p>
+              {game.steamAppId && (
+                <span className="text-[9px] bg-blue-500/10 border border-blue-500/20 text-blue-400 font-bold px-1 rounded uppercase tracking-wider scale-90 origin-left">
+                  Steam
+                </span>
+              )}
+            </div>
           </div>
         </div>
       </div>

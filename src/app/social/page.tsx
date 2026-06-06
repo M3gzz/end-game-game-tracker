@@ -5,8 +5,8 @@ import { useTrackerStore } from '@/store/trackerStore';
 import { PRELOADED_GAMES } from '@/data/preloadedGames';
 import { MOCK_USERS } from '@/data/mockUsers';
 import { 
-  Star, MessageSquare, Plus, X, Send, Award, Compass, Heart, 
-  Image as ImageIcon
+  Star, MessageSquare, Plus, X, Send, Compass, Heart, 
+  Image as ImageIcon, Search
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -19,6 +19,8 @@ export default function SocialHub() {
 
   const [mounted, setMounted] = React.useState(false);
   const [activeSubTab, setActiveSubTab] = React.useState<'feed' | 'screenshots'>('feed');
+  const [socialSidebarTab, setSocialSidebarTab] = React.useState<'following' | 'browse'>('following');
+  const [friendSearchQuery, setFriendSearchQuery] = React.useState('');
   
   // Feed Filters
   const [selectedGameFilter, setSelectedGameFilter] = React.useState<string>('all');
@@ -56,6 +58,73 @@ export default function SocialHub() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
+
+  // Helper to retrieve user details from Mock users or Local accounts
+  const getUserDetails = React.useCallback((username: string) => {
+    const mock = MOCK_USERS[username];
+    if (mock) {
+      return {
+        username,
+        name: mock.name,
+        avatarUrl: mock.avatarUrl,
+        level: mock.stats.level,
+        isOnline: true
+      };
+    }
+    const local = useTrackerStore.getState().accounts[username];
+    if (local) {
+      return {
+        username,
+        name: local.profile.name,
+        avatarUrl: local.profile.avatarUrl,
+        level: Math.floor((Object.keys(local.progress.unlockedAchievements || {}).length) / 5) + 1,
+        isOnline: false
+      };
+    }
+    return {
+      username,
+      name: username,
+      avatarUrl: 'linear-gradient(135deg, #71717a 0%, #3f3f46 100%)',
+      level: 1,
+      isOnline: false
+    };
+  }, []);
+
+  const browseableAccounts = React.useMemo(() => {
+    const list: string[] = [];
+    Object.keys(MOCK_USERS).forEach(un => {
+      if (un !== profile.username) list.push(un);
+    });
+    const localAccounts = useTrackerStore.getState().accounts || {};
+    Object.keys(localAccounts).forEach(un => {
+      if (un !== profile.username && !list.includes(un)) {
+        list.push(un);
+      }
+    });
+    return list;
+  }, [profile.username]);
+
+  const filteredBrowseAccounts = React.useMemo(() => {
+    const query = friendSearchQuery.toLowerCase().trim();
+    if (!query) return browseableAccounts;
+    return browseableAccounts.filter(username => {
+      const details = getUserDetails(username);
+      return details.name.toLowerCase().includes(query) || username.toLowerCase().includes(query);
+    });
+  }, [browseableAccounts, friendSearchQuery, getUserDetails]);
+
+  const followingUsernames = React.useMemo(() => {
+    return profile.following || [];
+  }, [profile.following]);
+
+  const filteredFollowingAccounts = React.useMemo(() => {
+    const query = friendSearchQuery.toLowerCase().trim();
+    if (!query) return followingUsernames;
+    return followingUsernames.filter(username => {
+      const details = getUserDetails(username);
+      return details.name.toLowerCase().includes(query) || username.toLowerCase().includes(query);
+    });
+  }, [followingUsernames, friendSearchQuery, getUserDetails]);
 
   // Filter posts
   const filteredPosts = React.useMemo(() => {
@@ -444,57 +513,146 @@ export default function SocialHub() {
             </div>
           </div>
 
-          {/* Followed Hunters Tray */}
-          <div className="bg-zinc-900/30 border border-zinc-800/80 rounded-3xl p-5 space-y-4 backdrop-blur-sm shadow-xl">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-900">
-              <h3 className="font-bold text-sm text-zinc-200 uppercase tracking-wider flex items-center gap-2">
-                <Award className="w-4 h-4 text-purple-400" /> Followed Hunters
-              </h3>
+          {/* Followed / Browse Hunters Tray */}
+          <div className="bg-zinc-900/30 border border-zinc-800/80 rounded-3xl p-5 space-y-4 backdrop-blur-sm shadow-xl flex flex-col">
+            <div className="flex border-b border-zinc-900/60 pb-1">
+              <button
+                onClick={() => {
+                  setSocialSidebarTab('following');
+                  setFriendSearchQuery('');
+                }}
+                className={`flex-1 pb-2.5 text-xs font-extrabold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer ${
+                  socialSidebarTab === 'following' ? 'text-white border-purple-500 font-black' : 'text-zinc-500 border-transparent hover:text-zinc-350'
+                }`}
+              >
+                👥 Following ({followingUsernames.length})
+              </button>
+              <button
+                onClick={() => {
+                  setSocialSidebarTab('browse');
+                  setFriendSearchQuery('');
+                }}
+                className={`flex-1 pb-2.5 text-xs font-extrabold uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer ${
+                  socialSidebarTab === 'browse' ? 'text-white border-purple-500 font-black' : 'text-zinc-500 border-transparent hover:text-zinc-350'
+                }`}
+              >
+                🔍 Find Hunters
+              </button>
             </div>
 
-            <div className="space-y-4">
-              {Object.keys(MOCK_USERS).map((username) => {
-                const user = MOCK_USERS[username];
-                const isFollowing = profile.following?.includes(username);
-                
-                return (
-                  <div 
-                    key={username}
-                    className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-zinc-900/30 border border-zinc-900/60 hover:border-zinc-800 transition-all animate-in fade-in-20 duration-150"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/5 relative shrink-0">
-                        {user.avatarUrl.startsWith('linear-gradient') ? (
-                          <div className="w-full h-full flex items-center justify-center font-bold text-sm text-white" style={{ background: user.avatarUrl }}>
-                            {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
-                          </div>
-                        ) : (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <h4 className="text-xs font-bold text-zinc-100 truncate">{user.name}</h4>
-                        <p className="text-[10px] text-zinc-500 font-semibold truncate mt-0.5">@{user.username}</p>
-                        <span className="inline-block text-[9px] bg-zinc-900 text-purple-400 px-1.5 py-0.5 rounded font-black mt-1 uppercase">
-                          Lvl {user.stats.level}
-                        </span>
-                      </div>
-                    </div>
+            {/* Friend Search input */}
+            <div className="relative px-0.5">
+              <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-zinc-500" />
+              <input
+                type="text"
+                value={friendSearchQuery}
+                onChange={(e) => setFriendSearchQuery(e.target.value)}
+                placeholder={socialSidebarTab === 'following' ? "Search followed hunters..." : "Search hunters to follow..."}
+                className="w-full bg-zinc-950/80 border border-zinc-850 rounded-xl pl-8.5 pr-8 py-2 text-xs text-white placeholder-zinc-600 focus:outline-none focus:border-purple-500"
+              />
+              {friendSearchQuery && (
+                <button
+                  onClick={() => setFriendSearchQuery('')}
+                  className="absolute right-2.5 top-2 text-zinc-400 hover:text-zinc-250 cursor-pointer p-0.5"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
 
-                    <button
-                      onClick={() => toggleFollowUser(username)}
-                      className={`px-3 py-1.5 rounded-lg text-[10px] font-extrabold transition-all flex items-center gap-1.5 cursor-pointer shrink-0 ${
-                        isFollowing
-                          ? 'bg-zinc-800 border border-zinc-700 text-zinc-400 animate-in fade-in duration-200'
-                          : 'bg-purple-600/10 border border-purple-500/20 text-purple-400 hover:bg-purple-600 hover:text-white'
-                      }`}
-                    >
-                      {isFollowing ? 'Following' : 'Follow'}
-                    </button>
+            <div className="space-y-3 max-h-[420px] overflow-y-auto pr-0.5 custom-scrollbar">
+              {socialSidebarTab === 'following' ? (
+                filteredFollowingAccounts.length === 0 ? (
+                  <div className="text-center py-8 text-zinc-600 text-xs italic">
+                    {friendSearchQuery ? "No matching followed hunters." : "You aren't following anyone yet. Select 'Find Hunters' to find friends!"}
                   </div>
-                );
-              })}
+                ) : (
+                  filteredFollowingAccounts.map((username) => {
+                    const user = getUserDetails(username);
+
+                    
+                    return (
+                      <div 
+                        key={username}
+                        className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-zinc-900/30 border border-zinc-900/60 hover:border-zinc-800/80 transition-all"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/5 relative shrink-0">
+                            {user.avatarUrl.startsWith('linear-gradient') ? (
+                              <div className="w-full h-full flex items-center justify-center font-bold text-xs text-white" style={{ background: user.avatarUrl }}>
+                                {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                              </div>
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-zinc-100 truncate">{user.name}</h4>
+                            <p className="text-[10px] text-zinc-500 font-semibold truncate">@{user.username}</p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => toggleFollowUser(username)}
+                          className="px-2.5 py-1.5 rounded-lg text-[9px] font-extrabold bg-zinc-850 hover:bg-zinc-800 text-zinc-400 hover:text-zinc-200 border border-zinc-800 transition-all cursor-pointer shrink-0"
+                        >
+                          Unfollow
+                        </button>
+                      </div>
+                    );
+                  })
+                )
+              ) : (
+                filteredBrowseAccounts.length === 0 ? (
+                  <div className="text-center py-8 text-zinc-600 text-xs italic">
+                    No hunters found matching &quot;{friendSearchQuery}&quot;.
+                  </div>
+                ) : (
+                  filteredBrowseAccounts.map((username) => {
+                    const user = getUserDetails(username);
+                    const isFollowing = profile.following?.includes(username);
+                    
+                    return (
+                      <div 
+                        key={username}
+                        className="flex items-center justify-between gap-3 p-3 rounded-2xl bg-zinc-900/30 border border-zinc-900/60 hover:border-zinc-800/80 transition-all"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-9 h-9 rounded-xl overflow-hidden border border-white/5 relative shrink-0">
+                            {user.avatarUrl.startsWith('linear-gradient') ? (
+                              <div className="w-full h-full flex items-center justify-center font-bold text-xs text-white" style={{ background: user.avatarUrl }}>
+                                {user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
+                              </div>
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-xs font-bold text-zinc-100 truncate">{user.name}</h4>
+                            <p className="text-[10px] text-zinc-550 font-semibold truncate font-mono">@{user.username}</p>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            toggleFollowUser(username);
+                            showToast(isFollowing ? `Unfollowed @${username}` : `Following @${username}`, 'success');
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-[9px] font-extrabold transition-all cursor-pointer shrink-0 ${
+                            isFollowing
+                              ? 'bg-zinc-850 border border-zinc-800 text-zinc-400 hover:text-zinc-200'
+                              : 'bg-purple-600/10 border border-purple-500/20 text-purple-400 hover:bg-purple-600 hover:text-white'
+                          }`}
+                        >
+                          {isFollowing ? 'Following' : 'Follow'}
+                        </button>
+                      </div>
+                    );
+                  })
+                )
+              )}
             </div>
           </div>
 

@@ -7,9 +7,20 @@ import Sidebar from '@/components/ui/Sidebar';
 import AuthGateway from '@/components/auth/AuthGateway';
 import OnboardingWizard from '@/components/profile/OnboardingWizard';
 import { Trophy } from 'lucide-react';
+import { performSteamLibrarySync } from '@/utils/steamSync';
 
 export default function AppLayoutWrapper({ children }: { children: React.ReactNode }) {
-  const { currentUsername, checkMigration } = useTrackerStore();
+  const { 
+    currentUsername, 
+    checkMigration,
+    profile,
+    progress,
+    addGame,
+    addCustomGame,
+    updatePlaytime,
+    syncAchievements,
+    syncUserAchievements
+  } = useTrackerStore();
   const [mounted, setMounted] = React.useState(false);
 
   React.useEffect(() => {
@@ -17,6 +28,40 @@ export default function AppLayoutWrapper({ children }: { children: React.ReactNo
     checkMigration();
     setMounted(true);
   }, [checkMigration]);
+
+  // Background Auto-sync Steam Library once per session
+  React.useEffect(() => {
+    if (mounted && currentUsername && currentUsername !== 'guest' && profile.steamId) {
+      const sessionKey = `steam_sync_${currentUsername}_${profile.steamId}`;
+      const hasSyncedThisSession = sessionStorage.getItem(sessionKey);
+      
+      if (!hasSyncedThisSession) {
+        sessionStorage.setItem(sessionKey, 'pending');
+        
+        const triggerBackgroundSync = async () => {
+          try {
+            console.log('Starting background Steam library sync...');
+            await performSteamLibrarySync(profile.steamId!, profile.steamApiKey || '', {
+              addGame,
+              addCustomGame,
+              updatePlaytime,
+              syncAchievements,
+              syncUserAchievements,
+              progress
+            });
+            sessionStorage.setItem(sessionKey, 'true');
+            console.log('Background Steam library sync completed successfully.');
+          } catch (err) {
+            console.error('Background Steam library sync failed:', err);
+            // Remove the pending flag so it can retry later if they refresh
+            sessionStorage.removeItem(sessionKey);
+          }
+        };
+        
+        triggerBackgroundSync();
+      }
+    }
+  }, [mounted, currentUsername, profile.steamId, profile.steamApiKey]);
 
   if (!mounted) {
     // Elegant loading splash to prevent hydration flash

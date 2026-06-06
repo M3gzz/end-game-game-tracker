@@ -5,7 +5,7 @@ import { useTrackerStore } from '@/store/trackerStore';
 import { PRELOADED_GAMES } from '@/data/preloadedGames';
 import { MOCK_USERS } from '@/data/mockUsers';
 import { 
-  SendHorizontal, MessageSquare, Swords, Flame, X
+  SendHorizontal, MessageSquare, Swords, Flame, X, Search
 } from 'lucide-react';
 
 export default function DMsPage() {
@@ -16,6 +16,8 @@ export default function DMsPage() {
   const [mounted, setMounted] = React.useState(false);
   const [selectedDMUser, setSelectedDMUser] = React.useState<string>('arthur_morgan');
   const [chatInput, setChatInput] = React.useState('');
+  const [searchQuery, setSearchQuery] = React.useState('');
+
 
   // Duel Challenge Form State
   const [duelGameId, setDuelGameId] = React.useState(PRELOADED_GAMES[0].id);
@@ -37,6 +39,114 @@ export default function DMsPage() {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);
+
+  // Helper to retrieve user details from Mock users or Local accounts
+  const getUserDetails = React.useCallback((username: string) => {
+    const mock = MOCK_USERS[username];
+    if (mock) {
+      return {
+        username,
+        name: mock.name,
+        avatarUrl: mock.avatarUrl,
+        level: mock.stats.level,
+        isOnline: true,
+        stats: {
+          level: mock.stats.level,
+          unlockedTrophiesCount: mock.stats.unlockedTrophiesCount,
+          completedGamesCount: mock.stats.completedGamesCount
+        }
+      };
+    }
+    const local = useTrackerStore.getState().accounts[username];
+    if (local) {
+      const unlockedCount = Object.keys(local.progress.unlockedAchievements || {}).length;
+      return {
+        username,
+        name: local.profile.name,
+        avatarUrl: local.profile.avatarUrl,
+        level: Math.floor(unlockedCount / 5) + 1,
+        isOnline: false,
+        stats: {
+          level: Math.floor(unlockedCount / 5) + 1,
+          unlockedTrophiesCount: unlockedCount,
+          completedGamesCount: local.progress.ownedGames.filter(gId => {
+            const custom = local.progress.customAchievements?.[gId] || [];
+            const game = PRELOADED_GAMES.find(g => g.id === gId);
+            const achievements = custom.length > 0 ? custom : (game?.achievements || []);
+            if (achievements.length === 0) return false;
+            return achievements.every(ach => !!local.progress.unlockedAchievements[ach.id]);
+          }).length
+        }
+      };
+    }
+    return {
+      username,
+      name: username,
+      avatarUrl: 'linear-gradient(135deg, #71717a 0%, #3f3f46 100%)',
+      level: 1,
+      isOnline: false,
+      stats: {
+        level: 1,
+        unlockedTrophiesCount: 0,
+        completedGamesCount: 0
+      }
+    };
+  }, []);
+
+  // Compute all usernames in active DM channel list
+  const channelUsernames = React.useMemo(() => {
+    const set = new Set<string>();
+    // default mock users
+    Object.keys(MOCK_USERS).forEach(un => set.add(un));
+    // users we have messages with
+    Object.keys(messages).forEach(un => {
+      if (un !== profile.username) {
+        set.add(un);
+      }
+    });
+    // any selected DM user
+    if (selectedDMUser && selectedDMUser !== profile.username) {
+      set.add(selectedDMUser);
+    }
+    return Array.from(set);
+  }, [messages, profile.username, selectedDMUser]);
+
+  // Compute search results across mock users and local accounts
+  const searchResults = React.useMemo(() => {
+    if (!searchQuery.trim()) return [];
+    const query = searchQuery.toLowerCase().trim();
+    
+    const allUsernames = new Set<string>();
+    Object.keys(MOCK_USERS).forEach(un => allUsernames.add(un));
+    
+    const localAccounts = useTrackerStore.getState().accounts || {};
+    Object.keys(localAccounts).forEach(un => allUsernames.add(un));
+    
+    // Remove active user
+    allUsernames.delete(profile.username);
+    
+    const results: Array<{ username: string; name: string; avatarUrl: string; alreadyInChannels: boolean }> = [];
+    
+    allUsernames.forEach(un => {
+      const details = getUserDetails(un);
+      if (details.name.toLowerCase().includes(query) || un.toLowerCase().includes(query)) {
+        results.push({
+          username: un,
+          name: details.name,
+          avatarUrl: details.avatarUrl,
+          alreadyInChannels: channelUsernames.includes(un)
+        });
+      }
+    });
+    
+    return results;
+  }, [searchQuery, channelUsernames, profile.username, getUserDetails]);
+
+  const handleSelectUserFromSearch = (username: string) => {
+    setSelectedDMUser(username);
+    setSearchQuery('');
+    showToast(`Conversation with @${username} started!`, 'success');
+  };
 
   if (!mounted) {
     return (
@@ -69,12 +179,7 @@ export default function DMsPage() {
     showToast(`Challenge sent to @${selectedDMUser}! They accepted it instantly in your chat thread.`, 'success');
   };
 
-  const activeUser = MOCK_USERS[selectedDMUser] || {
-    name: 'Arthur Morgan',
-    username: 'arthur_morgan',
-    avatarUrl: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-    stats: { level: 25, unlockedTrophiesCount: 142, completedGamesCount: 4 }
-  };
+  const activeUser = getUserDetails(selectedDMUser);
 
   const initials = activeUser.name
     ? activeUser.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase()
@@ -97,49 +202,119 @@ export default function DMsPage() {
       {/* Main DMs Grid Console */}
       <div className="grid grid-cols-1 lg:grid-cols-12 bg-zinc-950 border border-zinc-900 rounded-3xl overflow-hidden shadow-2xl min-h-[65vh]">
         {/* Left Side Pane (Users thread select list) */}
-        <div className="lg:col-span-4 border-r border-zinc-900 p-4 space-y-4 bg-zinc-950/60">
-          <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest px-2">Hunter Channels</h3>
-          
-          <div className="space-y-1">
-            {Object.keys(MOCK_USERS).map(username => {
-              const user = MOCK_USERS[username];
-              const isSelected = selectedDMUser === username;
-              const userInitials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-              
-              return (
+        <div className="lg:col-span-4 border-r border-zinc-900 p-4 flex flex-col gap-4 bg-zinc-950/60">
+          <div className="space-y-2.5">
+            <h3 className="text-xs font-black text-zinc-500 uppercase tracking-widest px-2">Hunter Channels</h3>
+            
+            {/* Search Bar Input */}
+            <div className="relative px-1">
+              <Search className="absolute left-3.5 top-2.5 w-4.5 h-4.5 text-zinc-500" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search or add friend by name..."
+                className="w-full bg-zinc-900/80 border border-zinc-850 rounded-xl pl-9 pr-8 py-2 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-purple-500 transition-colors"
+              />
+              {searchQuery && (
                 <button
-                  key={username}
-                  onClick={() => setSelectedDMUser(username)}
-                  className={`w-full text-left p-3.5 rounded-2xl flex items-center justify-between transition-all cursor-pointer hover:scale-[1.01] ${
-                    isSelected 
-                      ? 'bg-purple-600/10 border border-purple-500/20 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.05)]' 
-                      : 'border border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
-                  }`}
+                  type="button"
+                  onClick={() => setSearchQuery('')}
+                  className="absolute right-3.5 top-2 text-zinc-400 hover:text-zinc-250 cursor-pointer p-0.5"
                 >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/5 relative shrink-0">
-                      {user.avatarUrl.startsWith('linear-gradient') ? (
-                        <div className="w-full h-full flex items-center justify-center font-bold text-white text-xs" style={{ background: user.avatarUrl }}>
-                          {userInitials}
-                        </div>
-                      ) : (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
-                      )}
-                    </div>
-                    <div className="min-w-0">
-                      <h4 className="text-sm font-bold text-zinc-100 truncate leading-snug">{user.name}</h4>
-                      <p className="text-[10px] text-zinc-500 font-semibold truncate mt-0.5">Online • Lvl {user.stats.level}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-1 bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800 shrink-0">
-                    <Flame className="w-3 h-3 text-orange-500 fill-orange-500" />
-                    <span className="text-[10px] font-bold text-zinc-300">5d</span>
-                  </div>
+                  <X className="w-3.5 h-3.5" />
                 </button>
-              );
-            })}
+              )}
+            </div>
+          </div>
+          
+          <div className="space-y-1 overflow-y-auto flex-1 custom-scrollbar pr-0.5">
+            {searchQuery.trim() ? (
+              <div className="space-y-2">
+                <div className="text-[10px] text-zinc-500 font-extrabold uppercase tracking-wider px-2">Search Results</div>
+                {searchResults.length === 0 ? (
+                  <div className="text-xs text-zinc-500 italic px-2 py-4">No match found.</div>
+                ) : (
+                  searchResults.map(res => {
+                    const isSelected = selectedDMUser === res.username;
+                    const initialsLabel = res.name.split(' ').map(n=>n[0]).join('').substring(0, 2).toUpperCase();
+                    return (
+                      <button
+                        key={res.username}
+                        onClick={() => handleSelectUserFromSearch(res.username)}
+                        className={`w-full text-left p-3.5 rounded-2xl flex items-center justify-between transition-all cursor-pointer hover:scale-[1.01] ${
+                          isSelected
+                            ? 'bg-purple-600/10 border border-purple-500/20 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.05)]'
+                            : 'border border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/5 relative shrink-0">
+                            {res.avatarUrl.startsWith('linear-gradient') ? (
+                              <div className="w-full h-full flex items-center justify-center font-bold text-white text-xs" style={{ background: res.avatarUrl }}>
+                                {initialsLabel}
+                              </div>
+                            ) : (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={res.avatarUrl} alt={res.name} className="w-full h-full object-cover" />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <h4 className="text-sm font-bold text-zinc-100 truncate leading-snug">{res.name}</h4>
+                            <p className="text-[10px] text-zinc-500 font-semibold truncate mt-0.5">@{res.username}</p>
+                          </div>
+                        </div>
+                        <div className="text-[9px] bg-purple-500/10 border border-purple-500/20 text-purple-400 px-2 py-1 rounded-lg font-black uppercase tracking-wider">
+                          {res.alreadyInChannels ? 'Open' : 'Add'}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            ) : (
+              channelUsernames.map(username => {
+                const user = getUserDetails(username);
+                const isSelected = selectedDMUser === username;
+                const userInitials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+                
+                return (
+                  <button
+                    key={username}
+                    onClick={() => setSelectedDMUser(username)}
+                    className={`w-full text-left p-3.5 rounded-2xl flex items-center justify-between transition-all cursor-pointer hover:scale-[1.01] ${
+                      isSelected 
+                        ? 'bg-purple-600/10 border border-purple-500/20 text-purple-400 shadow-[0_0_15px_rgba(168,85,247,0.05)]' 
+                        : 'border border-transparent text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/5 relative shrink-0">
+                        {user.avatarUrl.startsWith('linear-gradient') ? (
+                          <div className="w-full h-full flex items-center justify-center font-bold text-white text-xs" style={{ background: user.avatarUrl }}>
+                            {userInitials}
+                          </div>
+                        ) : (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img src={user.avatarUrl} alt={user.name} className="w-full h-full object-cover" />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <h4 className="text-sm font-bold text-zinc-100 truncate leading-snug">{user.name}</h4>
+                        <p className="text-[10px] text-zinc-500 font-semibold truncate mt-0.5">
+                          {user.isOnline ? 'Online' : 'Offline'} • Lvl {user.level}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1 bg-zinc-900 px-2 py-0.5 rounded-full border border-zinc-800 shrink-0">
+                      <Flame className="w-3 h-3 text-orange-500 fill-orange-500" />
+                      <span className="text-[10px] font-bold text-zinc-300">5d</span>
+                    </div>
+                  </button>
+                );
+              })
+            )}
           </div>
         </div>
 

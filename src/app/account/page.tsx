@@ -23,6 +23,8 @@ import {
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
 import CreatorBackdrop from '@/components/profile/CreatorBackdrop';
+import { performSteamLibrarySync } from '@/utils/steamSync';
+import { MOCK_USERS } from '@/data/mockUsers';
 
 
 const getBaseId = (id: string) => id.replace(/^\d+-/, '');
@@ -50,6 +52,7 @@ export default function AccountProfile() {
     updateSteamApiKey, 
     updateSteamId,
     addGame,
+    addCustomGame,
     updatePlaytime,
     syncAchievements,
     syncUserAchievements,
@@ -150,6 +153,16 @@ export default function AccountProfile() {
             updateProfile(data.name, data.bio, data.avatarUrl);
             setProfileSyncSuccess(true);
             setTimeout(() => setProfileSyncSuccess(false), 5000);
+
+            // Automatically sync user games in background
+            await performSteamLibrarySync(steamIdParam, profile.steamApiKey || '', {
+              addGame,
+              addCustomGame,
+              updatePlaytime,
+              syncAchievements,
+              syncUserAchievements,
+              progress
+            });
           } catch (err) {
             const msg = err instanceof Error ? err.message : String(err);
             setProfileSyncError(msg);
@@ -169,6 +182,47 @@ export default function AccountProfile() {
     const customList = progress.customGames ? Object.values(progress.customGames) : [];
     return [...PRELOADED_GAMES, ...customList];
   }, [progress.customGames]);
+
+  // Calculate Following List
+  const followingList = React.useMemo(() => {
+    const activeFollowing = profile.following || [];
+    return activeFollowing.map(username => {
+      const mock = MOCK_USERS[username];
+      if (mock) return { username, name: mock.name, avatarUrl: mock.avatarUrl };
+      const local = useTrackerStore.getState().accounts[username];
+      if (local) return { username, name: local.profile.name, avatarUrl: local.profile.avatarUrl };
+      return { username, name: username, avatarUrl: 'linear-gradient(135deg, #71717a 0%, #3f3f46 100%)' };
+    });
+  }, [profile.following]);
+
+  // Calculate Followers List
+  const followersList = React.useMemo(() => {
+    const list: Array<{ username: string; name: string; avatarUrl: string }> = [];
+    
+    // Check mock users
+    Object.keys(MOCK_USERS).forEach(username => {
+      const mock = MOCK_USERS[username];
+      const isDefaultFollower = (
+        (profile.username === 'hunter_megan' || profile.username === 'm3gzz' || profile.username === 'megs_za') &&
+        (username === 'geralt_of_rivia' || username === 'arthur_morgan' || username === 'ellie_williams')
+      );
+      if (mock.following.includes(profile.username) || isDefaultFollower) {
+        list.push({ username, name: mock.name, avatarUrl: mock.avatarUrl });
+      }
+    });
+
+    // Check local accounts
+    const allAccounts = useTrackerStore.getState().accounts || {};
+    Object.keys(allAccounts).forEach(username => {
+      if (username === profile.username) return;
+      const acc = allAccounts[username];
+      if (acc?.profile?.following?.includes(profile.username)) {
+        list.push({ username, name: acc.profile.name, avatarUrl: acc.profile.avatarUrl });
+      }
+    });
+
+    return list;
+  }, [profile.username]);
 
   if (!mounted) {
     return (
@@ -271,72 +325,20 @@ export default function AccountProfile() {
 
     try {
       const apiKey = profile.steamApiKey || '';
-      const response = await fetch(`/api/steam/owned-games?steamId=${profile.steamId}&apiKey=${encodeURIComponent(apiKey)}`);
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || `Sync failed with status ${response.status}`);
-      }
-
-      const ownedGamesFromSteam = data.games || [];
-      if (!Array.isArray(ownedGamesFromSteam) || ownedGamesFromSteam.length === 0) {
-        throw new Error('No games found in your public Steam library. Please double check your Steam privacy settings.');
-      }
-
-      let gamesSyncedCount = 0;
-      let achievementsUnlockedCount = 0;
-
-      const getSteamAppId = (g: typeof PRELOADED_GAMES[0]) => {
-        return g.steamAppId ? String(g.steamAppId) : g.coverUrl?.match(/\/apps\/(\d+)\//)?.[1];
-      };
-
-      // Perform sync for all matching games in parallel using Promise.all
-      await Promise.all(
-        ownedGamesFromSteam.map(async (gameOnSteam) => {
-          const matchingGame = PRELOADED_GAMES.find(g => getSteamAppId(g) === String(gameOnSteam.appId));
-          if (matchingGame) {
-            // 1. Add game to library if not already owned
-            addGame(matchingGame.id);
-
-            // 2. Update playtime hours
-            updatePlaytime(matchingGame.id, gameOnSteam.playtimeHours);
-
-            // 3. Fetch and sync achievements schema
-            try {
-              const achResponse = await fetch(`/api/steam/achievements?appId=${gameOnSteam.appId}&apiKey=${encodeURIComponent(apiKey)}`);
-              if (achResponse.ok) {
-                const achData = await achResponse.json();
-                if (achData.achievements && Array.isArray(achData.achievements)) {
-                  syncAchievements(matchingGame.id, achData.achievements);
-
-                  // 4. Fetch and sync personal achievements unlock progress
-                  try {
-                    const userAchResponse = await fetch(`/api/steam/user-achievements?appId=${gameOnSteam.appId}&steamId=${profile.steamId}&apiKey=${encodeURIComponent(apiKey)}`);
-                    if (userAchResponse.ok) {
-                      const userAchData = await userAchResponse.json();
-                      if (userAchData.unlockedApiNames && Array.isArray(userAchData.unlockedApiNames)) {
-                        syncUserAchievements(matchingGame.id, userAchData.unlockedApiNames);
-                        achievementsUnlockedCount += userAchData.unlockedApiNames.length;
-                      }
-                    }
-                  } catch (userAchErr) {
-                    console.error(`Failed to sync user achievements progress for ${matchingGame.title}:`, userAchErr);
-                  }
-                }
-              }
-            } catch (achErr) {
-              console.error(`Failed to sync achievements schema for ${matchingGame.title}:`, achErr);
-            }
-            gamesSyncedCount++;
-          }
-        })
+      const { gamesSyncedCount, achievementsUnlockedCount } = await performSteamLibrarySync(
+        profile.steamId,
+        apiKey,
+        {
+          addGame,
+          addCustomGame,
+          updatePlaytime,
+          syncAchievements,
+          syncUserAchievements,
+          progress
+        }
       );
 
-      if (gamesSyncedCount === 0) {
-        setLibrarySyncMessage('Scan complete! No matching games from your Steam library exist in our starter database of 30 S-tier titles.');
-      } else {
-        setLibrarySyncMessage(`Successfully synchronized ${gamesSyncedCount} games from your Steam library! Updated playtime records and unlocked ${achievementsUnlockedCount} trophies automatically.`);
-      }
+      setLibrarySyncMessage(`Successfully synchronized ${gamesSyncedCount} games from your Steam library! Updated playtime records and unlocked ${achievementsUnlockedCount} trophies automatically.`);
 
       // Hide success message after 10 seconds
       setTimeout(() => {
@@ -382,6 +384,8 @@ export default function AccountProfile() {
   const currentPrimary = showEditProfileModal ? editPrimaryColor : (profile.primaryColor || '#a855f7');
   const currentSecondary = showEditProfileModal ? editSecondaryColor : (profile.secondaryColor || '#6366f1');
   const currentBanner = showEditProfileModal ? editBanner : (profile.bannerUrl || '');
+
+
 
   return (
     <div 
@@ -591,6 +595,47 @@ export default function AccountProfile() {
             {profile.bio}
           </p>
 
+          {/* Followers / Following Bubbles */}
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-8 py-1.5 select-none">
+            {/* Followers Row */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Followers:</span>
+              <div className="flex -space-x-2 overflow-hidden">
+                {followersList.map(f => (
+                  <div
+                    key={f.username}
+                    className="w-7 h-7 rounded-full border-2 border-zinc-950 flex items-center justify-center text-[9px] font-black text-white shrink-0 relative group/favatar hover:scale-110 hover:z-10 transition-transform cursor-pointer"
+                    style={{ background: f.avatarUrl }}
+                    title={`${f.name} (@${f.username})`}
+                  >
+                    {!f.avatarUrl.startsWith('linear-gradient') && <img src={f.avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />}
+                    {f.avatarUrl.startsWith('linear-gradient') && f.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase()}
+                  </div>
+                ))}
+                {followersList.length === 0 && <span className="text-xs text-zinc-500 italic">None</span>}
+              </div>
+            </div>
+
+            {/* Following Row */}
+            <div className="flex items-center gap-2">
+              <span className="text-[11px] font-bold text-zinc-500 uppercase tracking-wider">Following:</span>
+              <div className="flex -space-x-2 overflow-hidden">
+                {followingList.map(f => (
+                  <div
+                    key={f.username}
+                    className="w-7 h-7 rounded-full border-2 border-zinc-950 flex items-center justify-center text-[9px] font-black text-white shrink-0 relative group/favatar hover:scale-110 hover:z-10 transition-transform cursor-pointer"
+                    style={{ background: f.avatarUrl }}
+                    title={`${f.name} (@${f.username})`}
+                  >
+                    {!f.avatarUrl.startsWith('linear-gradient') && <img src={f.avatarUrl} alt="" className="w-full h-full object-cover rounded-full" />}
+                    {f.avatarUrl.startsWith('linear-gradient') && f.name.split(' ').map(n=>n[0]).join('').substring(0,2).toUpperCase()}
+                  </div>
+                ))}
+                {followingList.length === 0 && <span className="text-xs text-zinc-500 italic">None</span>}
+              </div>
+            </div>
+          </div>
+
           {/* Social Stats Row */}
           <div className="flex flex-wrap items-center justify-center md:justify-start gap-4 select-none">
             <span className="text-xs bg-zinc-900 border border-zinc-800 text-zinc-400 px-3 py-1.5 rounded-xl font-bold">
@@ -734,14 +779,17 @@ export default function AccountProfile() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id as 'showcase' | 'cabinet' | 'posts')}
-              className={`px-5 py-3.5 text-xs font-extrabold tracking-wide uppercase border-b-2 transition-all cursor-pointer ${
+              className={`px-5 py-3.5 text-xs font-extrabold tracking-widest uppercase border-b-2 transition-all cursor-pointer ${
                 isActive
-                  ? 'text-[var(--profile-primary)] font-black'
-                  : 'border-transparent text-zinc-500 hover:text-zinc-300'
+                  ? 'text-white font-black'
+                  : 'border-transparent text-zinc-400 hover:text-zinc-200'
               }`}
-              style={isActive ? { borderBottomColor: 'var(--profile-primary)' } : {}}
+              style={isActive ? { 
+                borderBottomColor: 'var(--profile-primary)',
+                textShadow: '0 0 10px #ffffff, 0 0 20px var(--profile-primary)'
+              } : {}}
             >
-              {tab.label} <span className="text-[10px] ml-1 bg-zinc-900 px-1.5 py-0.5 rounded-md font-semibold text-zinc-400">{tab.count}</span>
+              {tab.label} <span className="text-[10px] ml-1.5 bg-zinc-900/80 px-2 py-0.5 rounded-md font-bold text-zinc-250 border border-zinc-800">{tab.count}</span>
             </button>
           );
         })}
@@ -758,12 +806,13 @@ export default function AccountProfile() {
                 <h2 
                   className="text-lg font-extrabold text-white flex items-center gap-2 select-none tracking-widest uppercase"
                   style={{
-                    textShadow: '0 0 8px #ffffff, 0 0 20px var(--profile-primary)',
+                    color: '#ffffff',
+                    textShadow: '0 0 10px #ffffff, 0 0 25px var(--profile-primary)',
                   }}
                 >
                   <Award className="w-5 h-5" style={{ color: 'var(--profile-primary)', filter: 'drop-shadow(0 0 4px var(--profile-primary))' }} /> Proudest Achievements
                 </h2>
-                <p className="text-xs text-zinc-500 mt-1 select-none">Pin up to 4 achievements from your cabinet to show off on your public profile.</p>
+                <p className="text-xs text-zinc-300 mt-1 select-none">Pin up to 4 achievements from your cabinet to show off on your public profile.</p>
               </div>
               <button
                 onClick={() => setShowShowcaseEditor(true)}
@@ -1039,12 +1088,13 @@ export default function AccountProfile() {
                     <h2 
                       className="text-lg font-extrabold text-white flex items-center gap-2 select-none tracking-widest uppercase"
                       style={{
-                        textShadow: '0 0 8px #ffffff, 0 0 20px var(--profile-primary)',
+                        color: '#ffffff',
+                        textShadow: '0 0 10px #ffffff, 0 0 25px var(--profile-primary)',
                       }}
                     >
                       <Sparkles className="w-5 h-5" style={{ color: 'var(--profile-primary)', filter: 'drop-shadow(0 0 4px var(--profile-primary))' }} /> Favorite Game Spotlight
                     </h2>
-                    <p className="text-xs text-zinc-500 mt-1 select-none">Your absolute favorite title spotlighted with cinematic stats and completion progress.</p>
+                    <p className="text-xs text-zinc-300 mt-1 select-none">Your absolute favorite title spotlighted with cinematic stats and completion progress.</p>
                   </div>
 
                   <div 
@@ -1216,11 +1266,17 @@ export default function AccountProfile() {
 
             {/* Perfect completions grid */}
             <div className="space-y-4">
-              <h3 className="font-bold text-sm text-zinc-300 uppercase tracking-wider flex items-center gap-2 select-none">
+              <h3 
+                className="font-extrabold text-sm text-white uppercase tracking-widest flex items-center gap-2 select-none"
+                style={{
+                  color: '#ffffff',
+                  textShadow: '0 0 10px #ffffff, 0 0 25px var(--profile-primary)'
+                }}
+              >
                 🏅 Perfect Completions ({completedGames.length})
               </h3>
               {completedGames.length === 0 ? (
-                <p className="text-xs text-zinc-500 italic select-none">Unlock all achievements in any added game to achieve 100% completion!</p>
+                <p className="text-xs text-zinc-300 italic select-none">Unlock all achievements in any added game to achieve 100% completion!</p>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {completedGames.map(game => (
