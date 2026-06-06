@@ -40,10 +40,11 @@ export default function Dashboard() {
 
 
 
-  // Resolve user games from preloaded list
+  // Resolve user games from preloaded list + custom/synced games
   const ownedGames = React.useMemo(() => {
-    return PRELOADED_GAMES.filter(game => progress.ownedGames.includes(game.id));
-  }, [progress.ownedGames]);
+    const allGames = [...PRELOADED_GAMES, ...Object.values(progress.customGames || {})];
+    return allGames.filter(game => progress.ownedGames.includes(game.id));
+  }, [progress.ownedGames, progress.customGames]);
 
   // Overall Achievement Math
   let totalAchievementsInLibrary = 0;

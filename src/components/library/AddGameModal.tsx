@@ -36,6 +36,16 @@ export default function AddGameModal({ isOpen, onClose }: AddGameModalProps) {
   const [steamResults, setSteamResults] = React.useState<SteamSearchResultItem[]>([]);
   const [isSearching, setIsSearching] = React.useState(false);
 
+  // Non-blocking Toast notification state
+  const [toast, setToast] = React.useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
+
   const filteredGames = React.useMemo(() => {
     return PRELOADED_GAMES.filter(game => 
       game.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -80,11 +90,25 @@ export default function AddGameModal({ isOpen, onClose }: AddGameModalProps) {
   };
 
   const handleAddSteamGame = (item: SteamSearchResultItem) => {
-    const gameId = `steam-${item.id}`;
+    // If the synced game exists in the starter catalogue (like Cyberpunk 2077), map it directly
+    const matchingPreloaded = PRELOADED_GAMES.find(
+      g => g.steamAppId && String(g.steamAppId) === String(item.id)
+    );
+
+    const gameId = matchingPreloaded ? matchingPreloaded.id : `steam-${item.id}`;
     
     // Check if already added
     if (progress.ownedGames.includes(gameId)) {
-      alert(`"${item.name}" is already in your library!`);
+      showToast(`"${item.name}" is already in your library!`, 'info');
+      return;
+    }
+
+    if (matchingPreloaded) {
+      addGame(matchingPreloaded.id);
+      showToast(`Successfully synced "${item.name}" from Steam Store!`, 'success');
+      setTimeout(() => {
+        onClose();
+      }, 1500);
       return;
     }
 
@@ -145,8 +169,10 @@ export default function AddGameModal({ isOpen, onClose }: AddGameModalProps) {
     };
 
     addCustomGame(newGame);
-    alert(`Successfully synced "${item.name}" from Steam Store!`);
-    onClose();
+    showToast(`Successfully synced "${item.name}" from Steam Store!`, 'success');
+    setTimeout(() => {
+      onClose();
+    }, 1500);
   };
 
   const handleCreateCustom = (e: React.FormEvent) => {
@@ -192,8 +218,10 @@ export default function AddGameModal({ isOpen, onClose }: AddGameModalProps) {
     };
 
     addCustomGame(newGame);
-    alert(`Added custom game "${customTitle}" to library!`);
-    onClose();
+    showToast(`Added custom game "${customTitle}" to library!`, 'success');
+    setTimeout(() => {
+      onClose();
+    }, 1500);
   };
 
   return (
@@ -206,6 +234,14 @@ export default function AddGameModal({ isOpen, onClose }: AddGameModalProps) {
       
       {/* Modal Content */}
       <div className="relative w-full max-w-3xl h-[85vh] bg-zinc-950 border border-zinc-800 rounded-3xl overflow-hidden shadow-2xl flex flex-col z-10 animate-in fade-in zoom-in-95 duration-200">
+        
+        {/* Floating Toast Notification */}
+        {toast && (
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 z-[60] flex items-center gap-2.5 px-4 py-2.5 bg-zinc-950/90 border border-purple-500/30 rounded-2xl shadow-xl animate-in fade-in slide-in-from-top-4 duration-300 pointer-events-none select-none backdrop-blur-sm">
+            <div className={`w-2 h-2 rounded-full ${toast.type === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : toast.type === 'error' ? 'bg-rose-500 shadow-[0_0_8px_#ef4444]' : 'bg-purple-500 shadow-[0_0_8px_#a855f7]'}`} />
+            <span className="text-xs font-bold text-zinc-100">{toast.message}</span>
+          </div>
+        )}
         
         {/* Header */}
         <div className="p-6 border-b border-zinc-900 flex items-center justify-between">

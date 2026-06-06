@@ -1801,5 +1801,97 @@ export const PRELOADED_GAMES: Game[] = [
         guide: 'Can be completed in free-roam post-game. Focus on leveling up your secondary capabilities and farm resources in designated high-yield zones.'
       },
     ]
+  },
+  {
+    id: 'cyberpunk-2077',
+    title: 'Cyberpunk 2077',
+    developer: 'CD PROJEKT RED',
+    estimatedDifficulty: 5,
+    estimatedHours: 100,
+    platforms: ['Steam', 'PlayStation 5', 'Xbox Series X/S', 'PC'],
+    releaseYear: 2020,
+    coverUrl: 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1091500/library_600x900.jpg',
+    bannerUrl: 'https://shared.fastly.steamstatic.com/store_item_assets/steam/apps/1091500/library_hero.jpg',
+    description: 'Cyberpunk 2077 is an open-world, action-adventure role-playing video game set in Night City, a megalopolis obsessed with power, glamour and body modification.',
+    steamAppId: 1091500,
+    dlcs: [
+      { id: 'cp-phantom-liberty', gameId: 'cyberpunk-2077', title: 'Phantom Liberty', achievementsCount: 2 }
+    ],
+    achievements: [
+      {
+        id: 'cp-the-fool',
+        gameId: 'cyberpunk-2077',
+        title: 'The Fool',
+        description: 'Become a mercenary and start your career.',
+        iconUrl: getTrophyIcon('bronze'),
+        rarityPercentage: 82.5,
+        tier: 'bronze',
+        guide: 'Unlocked automatically during the main campaign after completing the prologue and receiving the biochip.'
+      },
+      {
+        id: 'cp-the-lovers',
+        gameId: 'cyberpunk-2077',
+        title: 'The Lovers',
+        description: 'Steal the Relic with Jackie.',
+        iconUrl: getTrophyIcon('silver'),
+        rarityPercentage: 62.4,
+        tier: 'silver',
+        guide: 'Complete the heist mission "The Heist" in Act 1.'
+      },
+      {
+        id: 'cp-breathtaking',
+        gameId: 'cyberpunk-2077',
+        title: 'Breathtaking',
+        description: 'Find all items that once belonged to Johnny Silverhand.',
+        iconUrl: getTrophyIcon('gold'),
+        rarityPercentage: 12.8,
+        tier: 'gold',
+        isCollectible: true,
+        guide: 'Collect Johnny\'s tank top, jacket, aviators, gun (Malorian Arms), and Porsche 911 during various side jobs related to Rogue and Kerry.'
+      },
+      {
+        id: 'cp-the-star',
+        gameId: 'cyberpunk-2077',
+        title: 'The Star',
+        description: 'Leave Night City with the Aldecaldos.',
+        iconUrl: getTrophyIcon('gold'),
+        rarityPercentage: 21.5,
+        tier: 'gold',
+        guide: 'Complete Panam Palmer\'s questline to unlock the Aldecaldos assistance in the final mission. Choose to call them, and then cross the border with Panam.'
+      },
+      {
+        id: 'cp-the-world',
+        gameId: 'cyberpunk-2077',
+        title: 'The World',
+        description: 'Complete the main storyline.',
+        iconUrl: getTrophyIcon('gold'),
+        rarityPercentage: 34.2,
+        tier: 'gold',
+        isMissable: false,
+        guide: 'Complete any of the main story endings. Unlocks after the credits.'
+      },
+      {
+        id: 'cp-phantom-1',
+        gameId: 'cyberpunk-2077',
+        dlcId: 'cp-phantom-liberty',
+        title: 'King of Cups',
+        description: 'Fulfill Songbird\'s request in Phantom Liberty.',
+        iconUrl: getTrophyIcon('silver'),
+        rarityPercentage: 15.4,
+        tier: 'silver',
+        guide: 'Choose to kill Songbird at her request during the climax of the Phantom Liberty expansion.'
+      },
+      {
+        id: 'cp-phantom-2',
+        gameId: 'cyberpunk-2077',
+        dlcId: 'cp-phantom-liberty',
+        title: 'King of Wands',
+        description: 'Take Songbird to the stars in Phantom Liberty.',
+        iconUrl: getTrophyIcon('gold'),
+        rarityPercentage: 9.8,
+        tier: 'gold',
+        guide: 'Refuse to surrender Songbird to Reed and send her up in the shuttle at the spaceport.'
+      }
+    ]
   }
 ];

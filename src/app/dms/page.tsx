@@ -23,6 +23,16 @@ export default function DMsPage() {
   const [duelHours, setDuelHours] = React.useState(48);
   const [showDuelModal, setShowDuelModal] = React.useState(false);
 
+  // Toast state
+  const [toast, setToast] = React.useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
+
   React.useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
@@ -56,7 +66,7 @@ export default function DMsPage() {
       `⚔️ DUEL INVITATION: I challenged you to a speedrun duel in ${game ? game.title : 'the game'}! Check your Challenges tab to Accept/Decline.`
     );
     
-    alert(`Challenge sent to @${selectedDMUser}! They accepted it instantly in your chat thread.`);
+    showToast(`Challenge sent to @${selectedDMUser}! They accepted it instantly in your chat thread.`, 'success');
   };
 
   const activeUser = MOCK_USERS[selectedDMUser] || {
@@ -337,6 +347,13 @@ export default function DMsPage() {
               </div>
             </form>
           </div>
+        </div>
+      )}
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-24 right-8 z-[100] flex items-center gap-3 px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.8)] animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className={`w-2.5 h-2.5 rounded-full ${toast.type === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : toast.type === 'error' ? 'bg-rose-500 shadow-[0_0_8px_#ef4444]' : 'bg-purple-500 shadow-[0_0_8px_#a855f7]'}`} />
+          <span className="text-xs font-bold text-zinc-100">{toast.message}</span>
         </div>
       )}
     </div>

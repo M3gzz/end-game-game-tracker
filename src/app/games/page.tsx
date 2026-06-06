@@ -20,6 +20,12 @@ export default function GameLibrary() {
   const [sortBy, setSortBy] = React.useState<'title' | 'difficulty' | 'completion' | 'hours'>('title');
   const [sortOrder, setSortOrder] = React.useState<'asc' | 'desc'>('asc');
 
+  // Load owned games (including custom/synced games)
+  const ownedGames = React.useMemo(() => {
+    const allGames = [...PRELOADED_GAMES, ...Object.values(progress.customGames || {})];
+    return allGames.filter(game => progress.ownedGames.includes(game.id));
+  }, [progress.ownedGames, progress.customGames]);
+
   React.useEffect(() => {
     setMounted(true);
   }, []);
@@ -36,9 +42,6 @@ export default function GameLibrary() {
       </div>
     );
   }
-
-  // Load owned games
-  const ownedGames = PRELOADED_GAMES.filter(game => progress.ownedGames.includes(game.id));
 
   // Compute metrics and filter/sort games
   const processedGames = ownedGames

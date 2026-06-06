@@ -33,17 +33,22 @@ export default function PublicHunterProfile({ params }: UserProfilePageProps) {
 
 
   // Relational lookups
+  const allGames = React.useMemo(() => {
+    const customList = progress.customGames ? Object.values(progress.customGames) : [];
+    return [...PRELOADED_GAMES, ...customList];
+  }, [progress.customGames]);
+
   const allAchievements = React.useMemo(() => {
-    return PRELOADED_GAMES.flatMap((g: Game) => {
+    return allGames.flatMap((g: Game) => {
       const custom = progress.customAchievements?.[g.id] || [];
       return (custom.length > 0 ? custom : g.achievements) as Achievement[];
     });
-  }, [progress.customAchievements]);
+  }, [allGames, progress.customAchievements]);
 
   // Load the mock user profile, fallback to the logged in user profile if viewing self
   const user = React.useMemo(() => {
     if (username === profile.username) {
-      const ownedGames = PRELOADED_GAMES.filter(g => progress.ownedGames.includes(g.id));
+      const ownedGames = allGames.filter(g => progress.ownedGames.includes(g.id));
       
       let totalUnlockedAchievements = 0;
       ownedGames.forEach((game) => {
@@ -73,7 +78,7 @@ export default function PublicHunterProfile({ params }: UserProfilePageProps) {
       const unlockedList = allAchievements.filter(ach => !!progress.unlockedAchievements[ach.id]);
       const recentTrophies = unlockedList
         .map(ach => {
-          const game = PRELOADED_GAMES.find(g => g.id === ach.gameId);
+          const game = allGames.find(g => g.id === ach.gameId);
           return {
             achievementId: ach.id,
             title: ach.title,
@@ -108,7 +113,7 @@ export default function PublicHunterProfile({ params }: UserProfilePageProps) {
       return mockUser;
     }
     return undefined;
-  }, [username, profile, progress, allAchievements]);
+  }, [username, profile, progress, allAchievements, allGames]);
 
   if (!user) {
     return (
@@ -131,13 +136,16 @@ export default function PublicHunterProfile({ params }: UserProfilePageProps) {
   const followerCount = isFollowing ? user.followersCount + 1 : user.followersCount;
 
   // Showcase Achievements list
-  const preloadedAchievements = PRELOADED_GAMES.flatMap(g => g.achievements);
+  const preloadedAchievements = allGames.flatMap(g => {
+    const custom = progress.customAchievements?.[g.id] || [];
+    return custom.length > 0 ? custom : g.achievements;
+  });
   const showcasedAchievements = (user.stats.showcasedAchievements || [])
     .map(id => preloadedAchievements.find(ach => ach.id === id))
     .filter((ach): ach is NonNullable<typeof ach> => !!ach);
 
   // Completed Games
-  const completedGames = PRELOADED_GAMES.filter(game => 
+  const completedGames = allGames.filter(game => 
     user.stats.completedGameIds.includes(game.id)
   );
 
@@ -146,7 +154,7 @@ export default function PublicHunterProfile({ params }: UserProfilePageProps) {
 
   // Initials generator
   const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
-  const isDeveloper = username === 'hunter_megan' || username === 'm3gzz';
+  const isDeveloper = username?.toLowerCase() === 'hunter_megan' || username?.toLowerCase() === 'm3gzz' || username?.toLowerCase() === 'megs_za';
 
   if (!mounted) {
     return (

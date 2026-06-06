@@ -58,7 +58,7 @@ export default function AccountProfile() {
     logout
   } = useTrackerStore();
   const [mounted, setMounted] = React.useState(false);
-  const isDeveloper = mounted && (currentUsername === 'hunter_megan' || currentUsername === 'm3gzz');
+  const isDeveloper = mounted && (currentUsername?.toLowerCase() === 'hunter_megan' || currentUsername?.toLowerCase() === 'm3gzz' || currentUsername?.toLowerCase() === 'megs_za');
   
   // Tab control
   const [activeTab, setActiveTab] = React.useState<'showcase' | 'cabinet' | 'posts'>('showcase');
@@ -93,6 +93,16 @@ export default function AccountProfile() {
   const [isLibrarySyncing, setIsLibrarySyncing] = React.useState(false);
   const [librarySyncError, setLibrarySyncError] = React.useState<string | null>(null);
   const [librarySyncMessage, setLibrarySyncMessage] = React.useState<string | null>(null);
+
+  // Non-blocking Toast state
+  const [toast, setToast] = React.useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info') => {
+    setToast({ message, type });
+    setTimeout(() => {
+      setToast(null);
+    }, 3000);
+  };
 
   // File Input References
   const avatarFileInputRef = React.useRef<HTMLInputElement>(null);
@@ -154,6 +164,12 @@ export default function AccountProfile() {
     }
   }, [pruneShowcase, updateSteamId, profile.steamApiKey, updateProfile]);
 
+  // Relational lookups
+  const allGames = React.useMemo(() => {
+    const customList = progress.customGames ? Object.values(progress.customGames) : [];
+    return [...PRELOADED_GAMES, ...customList];
+  }, [progress.customGames]);
+
   if (!mounted) {
     return (
       <div className="flex-1 p-6 md:p-10 bg-zinc-950 min-h-screen flex items-center justify-center">
@@ -162,8 +178,7 @@ export default function AccountProfile() {
     );
   }
 
-  // Relational lookups
-  const allAchievements = PRELOADED_GAMES.flatMap(g => {
+  const allAchievements = allGames.flatMap(g => {
     const custom = progress.customAchievements?.[g.id] || [];
     return custom.length > 0 ? custom : g.achievements;
   });
@@ -182,7 +197,7 @@ export default function AccountProfile() {
   const trophiesNeededForNext = 5 - trophiesInCurrentLevel;
 
   // Completed Games list
-  const completedGames = PRELOADED_GAMES.filter(game => {
+  const completedGames = allGames.filter(game => {
     if (!progress.ownedGames.includes(game.id)) return false;
     const custom = progress.customAchievements?.[game.id] || [];
     const achievements = custom.length > 0 ? custom : game.achievements;
@@ -199,7 +214,7 @@ export default function AccountProfile() {
     .filter((ach): ach is NonNullable<typeof ach> => !!ach);
 
   const spotlightGame = profile.spotlightGameId
-    ? PRELOADED_GAMES.find(g => g.id === profile.spotlightGameId)
+    ? allGames.find(g => g.id === profile.spotlightGameId)
     : undefined;
 
   // Submission handler
@@ -344,7 +359,7 @@ export default function AccountProfile() {
     // Check size limit: up to 5MB for profile avatar and banner picture
     const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      alert(`File is too large! Maximum size allowed is 5MB.`);
+      showToast(`File is too large! Maximum size allowed is 5MB.`, 'error');
       return;
     }
 
@@ -743,7 +758,7 @@ export default function AccountProfile() {
                 <h2 
                   className="text-lg font-extrabold text-white flex items-center gap-2 select-none tracking-widest uppercase"
                   style={{
-                    textShadow: '0 0 12px var(--profile-primary)',
+                    textShadow: '0 0 8px #ffffff, 0 0 20px var(--profile-primary)',
                   }}
                 >
                   <Award className="w-5 h-5" style={{ color: 'var(--profile-primary)', filter: 'drop-shadow(0 0 4px var(--profile-primary))' }} /> Proudest Achievements
@@ -1024,7 +1039,7 @@ export default function AccountProfile() {
                     <h2 
                       className="text-lg font-extrabold text-white flex items-center gap-2 select-none tracking-widest uppercase"
                       style={{
-                        textShadow: '0 0 12px var(--profile-primary)',
+                        textShadow: '0 0 8px #ffffff, 0 0 20px var(--profile-primary)',
                       }}
                     >
                       <Sparkles className="w-5 h-5" style={{ color: 'var(--profile-primary)', filter: 'drop-shadow(0 0 4px var(--profile-primary))' }} /> Favorite Game Spotlight
@@ -1549,7 +1564,7 @@ export default function AccountProfile() {
                           className="w-full bg-zinc-950 border border-zinc-850 rounded-xl p-3.5 text-sm text-zinc-300 focus:outline-none focus:border-blue-500 font-semibold cursor-pointer"
                         >
                           <option value="">None (Hide Spotlight Widget)</option>
-                          {PRELOADED_GAMES
+                          {allGames
                             .filter(game => progress.ownedGames.includes(game.id))
                             .map(game => (
                               <option key={game.id} value={game.id}>
@@ -2036,6 +2051,13 @@ export default function AccountProfile() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+      {/* Floating Toast Notification */}
+      {toast && (
+        <div className="fixed bottom-24 right-8 z-[100] flex items-center gap-3 px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-2xl shadow-[0_0_30px_rgba(0,0,0,0.8)] animate-in fade-in slide-in-from-bottom-5 duration-300">
+          <div className={`w-2.5 h-2.5 rounded-full ${toast.type === 'success' ? 'bg-emerald-500 shadow-[0_0_8px_#10b981]' : toast.type === 'error' ? 'bg-rose-500 shadow-[0_0_8px_#ef4444]' : 'bg-purple-500 shadow-[0_0_8px_#a855f7]'}`} />
+          <span className="text-xs font-bold text-zinc-100">{toast.message}</span>
         </div>
       )}
     </div>
