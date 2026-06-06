@@ -16,12 +16,15 @@ import {
   BookOpen,
   MessageSquare,
   Award,
-  Swords
+  Swords,
+  Clock,
+  Bell,
+  LogOut
 } from 'lucide-react';
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { progress, profile } = useTrackerStore();
+  const { progress, profile, currentUsername, hasReadUpdates, logout } = useTrackerStore();
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [mounted, setMounted] = React.useState(false);
 
@@ -37,21 +40,25 @@ export default function Sidebar() {
     ? profile.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
     : 'MH';
 
+  const unreadUpdates = mounted && !hasReadUpdates[currentUsername || 'guest'];
+
   const navItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Library', href: '/games', icon: Gamepad2 },
+    { name: 'Backlog', href: '/backlog', icon: Clock },
     { name: 'Guides', href: '/guides', icon: BookOpen },
     { name: 'Challenges', href: '/challenges', icon: Swords },
     { name: 'Leaderboard', href: '/leaderboard', icon: Award },
     { name: 'DMs', href: '/dms', icon: MessageSquare },
     { name: 'Social Hub', href: '/social', icon: Users },
+    { name: 'Updates', href: '/updates', icon: Bell },
     { name: 'Profile', href: '/account', icon: User },
   ];
 
   const mobileNavItems = [
     { name: 'Dashboard', href: '/', icon: LayoutDashboard },
     { name: 'Library', href: '/games', icon: Gamepad2 },
-    { name: 'Challenges', href: '/challenges', icon: Swords },
+    { name: 'Backlog', href: '/backlog', icon: Clock },
     { name: 'DMs', href: '/dms', icon: MessageSquare },
     { name: 'Profile', href: '/account', icon: User },
   ];
@@ -85,15 +92,22 @@ export default function Sidebar() {
         {mobileNavItems.map((item) => {
           const isActive = pathname === item.href;
           const Icon = item.icon;
+          const isUpdates = item.name === 'Updates';
+          const showDot = isUpdates && unreadUpdates;
           return (
             <Link 
               key={item.name} 
               href={item.href}
-              className={`flex flex-col items-center justify-center w-16 h-full transition-colors ${
+              className={`flex flex-col items-center justify-center w-16 h-full transition-colors relative ${
                 isActive ? 'text-purple-500' : 'text-zinc-500 hover:text-zinc-300'
               }`}
             >
-              <Icon className="w-5 h-5 mb-1" />
+              <div className="relative">
+                <Icon className="w-5 h-5 mb-1" />
+                {showDot && (
+                  <span className="absolute top-0 right-0 w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                )}
+              </div>
               <span className="text-[9px] font-medium truncate">{item.name}</span>
             </Link>
           );
@@ -129,20 +143,32 @@ export default function Sidebar() {
           {navItems.map((item) => {
             const isActive = pathname === item.href;
             const Icon = item.icon;
+            const isUpdates = item.name === 'Updates';
+            const showDot = isUpdates && unreadUpdates;
             return (
               <Link 
                 key={item.name}
                 href={item.href}
-                className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all group ${
+                className={`flex items-center gap-4 px-4 py-3.5 rounded-xl transition-all group relative ${
                   isActive 
                     ? 'bg-purple-600/10 text-purple-400 border border-purple-500/20 shadow-[0_0_15px_rgba(168,85,247,0.05)]' 
                     : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-900/60 border border-transparent'
                 }`}
               >
-                <Icon className={`w-5 h-5 shrink-0 transition-transform group-hover:scale-110 ${isActive ? 'text-purple-400' : 'text-zinc-400'}`} />
+                <div className="relative shrink-0">
+                  <Icon className={`w-5 h-5 transition-transform group-hover:scale-110 ${isActive ? 'text-purple-400' : 'text-zinc-400'}`} />
+                  {showDot && (
+                    <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full border border-zinc-950 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-pulse" />
+                  )}
+                </div>
                 {!isCollapsed && (
-                  <span className="text-sm font-semibold tracking-wide transition-opacity duration-300">
-                    {item.name}
+                  <span className="text-sm font-semibold tracking-wide transition-opacity duration-300 flex-1 flex items-center justify-between">
+                    <span>{item.name}</span>
+                    {showDot && (
+                      <span className="text-[9px] bg-red-500/20 text-red-400 px-2 py-0.5 rounded-full font-bold uppercase tracking-wider animate-pulse">
+                        New
+                      </span>
+                    )}
                   </span>
                 )}
               </Link>
@@ -184,10 +210,17 @@ export default function Sidebar() {
                     )}
                   </div>
                 </Link>
-                <div className="min-w-0">
+                <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-zinc-400 truncate">Hunter Profile</p>
                   <p className="text-sm font-bold text-white truncate">{profile.name}</p>
                 </div>
+                <button 
+                  onClick={logout} 
+                  className="text-zinc-500 hover:text-red-400 p-1.5 rounded-lg hover:bg-zinc-900 transition-colors shrink-0" 
+                  title="Log Out"
+                >
+                  <LogOut className="w-4.5 h-4.5" />
+                </button>
               </div>
               
               <div className="grid grid-cols-2 gap-2 text-center border-t border-zinc-800/80 pt-3">
@@ -243,6 +276,13 @@ export default function Sidebar() {
                   <Flame className="w-3 h-3 text-orange-500 fill-orange-500" />
                   <span className="text-[10px] font-bold text-zinc-300">{streak}</span>
                 </div>
+                <button 
+                  onClick={logout} 
+                  className="text-zinc-500 hover:text-red-400 p-2 rounded-xl hover:bg-zinc-900 transition-colors mt-2" 
+                  title="Log Out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
             </div>
           )}

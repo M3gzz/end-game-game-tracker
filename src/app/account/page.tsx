@@ -17,10 +17,13 @@ import {
   Palette,
   Check,
   Image as ImageIcon,
-  Trash2
+  Trash2,
+  Lock
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion, AnimatePresence } from 'framer-motion';
+import CreatorBackdrop from '@/components/profile/CreatorBackdrop';
+
 
 const getBaseId = (id: string) => id.replace(/^\d+-/, '');
 
@@ -50,9 +53,12 @@ export default function AccountProfile() {
     updatePlaytime,
     syncAchievements,
     syncUserAchievements,
-    setAvatarFrame
+    setAvatarFrame,
+    currentUsername,
+    logout
   } = useTrackerStore();
   const [mounted, setMounted] = React.useState(false);
+  const isDeveloper = mounted && (currentUsername === 'hunter_megan' || currentUsername === 'm3gzz');
   
   // Tab control
   const [activeTab, setActiveTab] = React.useState<'showcase' | 'cabinet' | 'posts'>('showcase');
@@ -364,7 +370,7 @@ export default function AccountProfile() {
 
   return (
     <div 
-      className="flex-1 p-6 md:p-10 bg-zinc-950 min-h-screen text-zinc-100 pb-24 md:pb-10 overflow-x-hidden transition-all duration-300 relative"
+      className="flex-1 bg-zinc-950 min-h-screen text-zinc-100 relative overflow-x-hidden"
       style={{
         '--profile-primary': currentPrimary,
         '--profile-secondary': currentSecondary,
@@ -372,6 +378,12 @@ export default function AccountProfile() {
         '--profile-secondary-glow': currentSecondary + '1a',
       } as React.CSSProperties}
     >
+      {/* Developer Backdrop */}
+      {isDeveloper && <CreatorBackdrop />}
+
+      {/* Main Account Viewport */}
+      <div className={`p-6 md:p-10 pb-24 md:pb-10 transition-all duration-500 relative ${currentUsername === 'guest' ? 'blur-2xl pointer-events-none select-none' : ''}`}>
+
       
       {/* Dynamic Ambient Background Atmosphere Patterns */}
       {profile.bgPattern === 'cyber-grid' && (
@@ -435,7 +447,7 @@ export default function AccountProfile() {
 
       {/* Cinematic Profile Header */}
       <div 
-        className="relative rounded-3xl overflow-hidden mb-8 border border-zinc-800 p-6 md:p-8 flex flex-col md:flex-row items-center md:items-start gap-6 shadow-[0_0_50px_var(--profile-primary-glow)] bg-cover bg-center transition-all duration-500"
+        className={`relative rounded-3xl overflow-hidden mb-8 border p-6 md:p-8 flex flex-col md:flex-row items-center md:items-start gap-6 transition-all duration-500 ${isDeveloper ? 'border-purple-500/50 shadow-[0_0_50px_rgba(168,85,247,0.25)]' : 'border-zinc-800 shadow-[0_0_50px_var(--profile-primary-glow)]'}`}
         style={{
           backgroundImage: currentBanner 
             ? `linear-gradient(to bottom, rgba(9, 9, 11, 0.45) 0%, rgba(9, 9, 11, 0.9) 100%), url(${currentBanner})` 
@@ -447,10 +459,10 @@ export default function AccountProfile() {
         {/* Dynamic Avatar Container */}
         <div className="relative shrink-0 select-none">
           {/* Pulsing Avatar Frame Glow Ring */}
-          {profile.avatarFrame && profile.avatarFrame !== 'none' && (
+          {(isDeveloper || (profile.avatarFrame && profile.avatarFrame !== 'none')) && (
             <div 
-              className="absolute -inset-1.5 rounded-[28px] blur-sm animate-pulse z-0 transition-all duration-500"
-              style={{
+              className={`absolute -inset-1.5 rounded-[28px] blur-sm z-0 transition-all duration-500 ${isDeveloper ? 'animate-rotate-conic bg-[conic-gradient(from_0deg,#ff007f,#7f00ff,#00f0ff,#ff007f)]' : 'animate-pulse'}`}
+              style={isDeveloper ? {} : {
                 background: profile.avatarFrame === 'neon-blue' 
                   ? 'linear-gradient(to right, #22d3ee, #06b6d4)'
                   : profile.avatarFrame === 'ember-glow'
@@ -465,8 +477,10 @@ export default function AccountProfile() {
           <div 
             className="w-24 h-24 md:w-28 md:h-28 rounded-3xl flex items-center justify-center font-extrabold text-3xl md:text-4xl text-white shadow-2xl relative group transition-all duration-350 overflow-hidden border-2 z-10"
             style={{ 
-              boxShadow: profile.avatarFrame && profile.avatarFrame !== 'none' ? 'none' : `0 0 25px ${currentPrimary}40`,
-              borderColor: profile.avatarFrame === 'neon-blue'
+              boxShadow: isDeveloper || (profile.avatarFrame && profile.avatarFrame !== 'none') ? 'none' : `0 0 25px ${currentPrimary}40`,
+              borderColor: isDeveloper
+                ? 'transparent'
+                : profile.avatarFrame === 'neon-blue'
                 ? '#22d3ee'
                 : profile.avatarFrame === 'ember-glow'
                 ? '#f97316'
@@ -533,19 +547,30 @@ export default function AccountProfile() {
             <span className="text-zinc-500 font-semibold text-sm">@{profile.username}</span>
           </div>
 
-          {profile.customTitle && (
-            <div 
-              className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-widest px-3 py-1 rounded-xl w-max border select-none transition-all shadow-[0_0_15px_var(--profile-primary-glow)]"
-              style={{
-                borderColor: 'var(--profile-primary)',
-                color: 'var(--profile-primary)',
-                backgroundColor: 'var(--profile-primary)0a',
-                textShadow: '0 0 8px var(--profile-primary)'
-              }}
-            >
-              🛡️ {profile.customTitle}
-            </div>
-          )}
+          <div className="flex flex-wrap items-center justify-center md:justify-start gap-2 select-none">
+            {isDeveloper && (
+              <div 
+                className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-widest px-3 py-1 rounded-xl w-max border select-none transition-all shadow-[0_0_20px_rgba(168,85,247,0.4)] border-purple-500 bg-purple-950/20 text-purple-300"
+                style={{ textShadow: '0 0 8px #a855f7' }}
+              >
+                👑 Founder & Lead Developer
+              </div>
+            )}
+            
+            {profile.customTitle && (
+              <div 
+                className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-widest px-3 py-1 rounded-xl w-max border select-none transition-all shadow-[0_0_15px_var(--profile-primary-glow)]"
+                style={{
+                  borderColor: 'var(--profile-primary)',
+                  color: 'var(--profile-primary)',
+                  backgroundColor: 'var(--profile-primary)0a',
+                  textShadow: '0 0 8px var(--profile-primary)'
+                }}
+              >
+                🛡️ {profile.customTitle}
+              </div>
+            )}
+          </div>
 
           <p className="text-zinc-400 text-xs md:text-sm max-w-xl leading-relaxed">
             {profile.bio}
@@ -1983,7 +2008,36 @@ export default function AccountProfile() {
           </div>
         )}
       </AnimatePresence>
+      </div>
 
+      {/* Guest Mode Auth Wall Popup */}
+      {currentUsername === 'guest' && (
+        <div className="absolute inset-0 flex items-center justify-center bg-zinc-950/50 z-[90] p-4 backdrop-blur-sm">
+          <div className="relative w-full max-w-md">
+            {/* Glow Border */}
+            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-600 via-indigo-500 to-pink-500 rounded-3xl blur opacity-45 animate-pulse" />
+            
+            {/* Glass Box */}
+            <div className="relative bg-zinc-900 border border-zinc-800 p-8 rounded-3xl shadow-2xl flex flex-col items-center text-center">
+              <div className="w-16 h-16 bg-purple-600/10 border border-purple-500/20 rounded-2xl flex items-center justify-center mb-5 shadow-[0_0_20px_rgba(168,85,247,0.15)]">
+                <Lock className="w-8 h-8 text-purple-400 animate-pulse" />
+              </div>
+              <h2 className="text-2xl font-black text-white tracking-tight uppercase bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-indigo-400">
+                Unlock Your Legacy
+              </h2>
+              <p className="text-xs text-zinc-400 mt-3 max-w-xs leading-relaxed">
+                Guest profile is local and temporary. Join the EndGame network to customize your profile, sync Steam achievements, and interact with the community.
+              </p>
+              <button
+                onClick={logout}
+                className="w-full mt-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold py-3.5 rounded-xl text-xs uppercase tracking-wider shadow-lg hover:shadow-[0_0_20px_rgba(168,85,247,0.4)] transition-all cursor-pointer"
+              >
+                Sign In / Create Account
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -7,6 +7,8 @@ import { MOCK_USERS } from '@/data/mockUsers';
 import { Trophy, Award, Calendar, ChevronLeft, UserPlus, UserMinus, MessageSquare, Heart } from 'lucide-react';
 import Link from 'next/link';
 import { Achievement, Game } from '@/types';
+import CreatorBackdrop from '@/components/profile/CreatorBackdrop';
+
 
 
 interface UserProfilePageProps {
@@ -144,6 +146,7 @@ export default function PublicHunterProfile({ params }: UserProfilePageProps) {
 
   // Initials generator
   const initials = user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase();
+  const isDeveloper = username === 'hunter_megan' || username === 'm3gzz';
 
   if (!mounted) {
     return (
@@ -154,44 +157,61 @@ export default function PublicHunterProfile({ params }: UserProfilePageProps) {
   }
 
   return (
-    <div className="flex-1 p-6 md:p-10 bg-zinc-950 min-h-screen text-zinc-100 pb-24 md:pb-10 overflow-x-hidden">
+    <div className="flex-1 p-6 md:p-10 bg-zinc-950 min-h-screen text-zinc-100 pb-24 md:pb-10 overflow-x-hidden relative">
+      {/* Developer Backdrop */}
+      {isDeveloper && <CreatorBackdrop />}
       
       {/* Back button */}
       <Link 
         href="/social" 
-        className="inline-flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-zinc-300 transition-colors mb-6 group select-none cursor-pointer"
+        className="inline-flex items-center gap-2 text-xs font-bold text-zinc-500 hover:text-zinc-300 transition-colors mb-6 group select-none cursor-pointer relative z-10"
       >
         <ChevronLeft className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
         Back to Social Hub
       </Link>
 
       {/* Cinematic Profile Header */}
-      <div className="relative rounded-3xl overflow-hidden mb-8 border border-zinc-800 bg-gradient-to-r from-zinc-900/60 via-zinc-950/80 to-blue-950/20 p-6 md:p-8 flex flex-col md:flex-row items-center md:items-start gap-6 shadow-[0_0_50px_rgba(59,130,246,0.03)]">
+      <div className={`relative rounded-3xl overflow-hidden mb-8 border p-6 md:p-8 flex flex-col md:flex-row items-center md:items-start gap-6 transition-all duration-500 z-10 ${isDeveloper ? 'border-purple-500/50 bg-gradient-to-r from-zinc-900/60 via-zinc-950/80 to-purple-950/20 shadow-[0_0_50px_rgba(168,85,247,0.25)]' : 'border-zinc-800 bg-gradient-to-r from-zinc-900/60 via-zinc-950/80 to-blue-950/20 shadow-[0_0_50px_rgba(59,130,246,0.03)]'}`}>
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_-30%,rgba(59,130,246,0.08),transparent_60%)] pointer-events-none" />
         
         {/* Dynamic Avatar Container */}
-        <div className="w-24 h-24 md:w-28 md:h-28 rounded-3xl overflow-hidden shadow-2xl border-2 border-white/25 shrink-0 select-none relative">
-          {user.avatarUrl && user.avatarUrl.startsWith('linear-gradient') ? (
-            <div 
-              className="w-full h-full flex items-center justify-center font-extrabold text-3xl md:text-4xl text-white"
-              style={{ background: user.avatarUrl }}
-            >
-              {initials}
-            </div>
-          ) : (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img 
-              src={user.avatarUrl} 
-              alt={user.name} 
-              className="w-full h-full object-cover" 
-            />
+        <div className="relative shrink-0 select-none">
+          {isDeveloper && (
+            <div className="absolute -inset-1.5 rounded-[28px] blur-sm animate-rotate-conic bg-[conic-gradient(from_0deg,#ff007f,#7f00ff,#00f0ff,#ff007f)] z-0 transition-all duration-500" />
           )}
+          <div className={`w-24 h-24 md:w-28 md:h-28 rounded-3xl overflow-hidden shadow-2xl border-2 shrink-0 select-none relative z-10 ${isDeveloper ? 'border-transparent' : 'border-white/25'}`}>
+            {user.avatarUrl && user.avatarUrl.startsWith('linear-gradient') ? (
+              <div 
+                className="w-full h-full flex items-center justify-center font-extrabold text-3xl md:text-4xl text-white"
+                style={{ background: user.avatarUrl }}
+              >
+                {initials}
+              </div>
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img 
+                src={user.avatarUrl} 
+                alt={user.name} 
+                className="w-full h-full object-cover" 
+              />
+            )}
+          </div>
         </div>
 
         {/* Profile Info Details */}
-        <div className="flex-1 text-center md:text-left space-y-3.5 min-w-0">
+        <div className="flex-1 text-center md:text-left space-y-3.5 min-w-0 relative z-10">
           <div className="flex flex-col md:flex-row md:items-center gap-2.5">
-            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-none">{user.name}</h1>
+            <h1 className="text-2xl md:text-3xl font-extrabold text-white tracking-tight leading-none flex items-center justify-center md:justify-start gap-2">
+              <span>{user.name}</span>
+              {isDeveloper && (
+                <span 
+                  className="text-[9px] px-2 py-0.5 rounded border border-purple-500 bg-purple-950/20 text-purple-300 font-black uppercase tracking-wider select-none shrink-0 shadow-[0_0_12px_rgba(168,85,247,0.3)]"
+                  style={{ textShadow: '0 0 8px #a855f7' }}
+                >
+                  👑 Founder
+                </span>
+              )}
+            </h1>
             <div className="flex items-center justify-center gap-2">
               <span className="text-zinc-500 font-semibold text-sm">@{user.username}</span>
               <span className="text-[10px] bg-zinc-900 border border-zinc-800 text-zinc-400 px-2 py-0.5 rounded font-bold uppercase tracking-wider select-none">

@@ -133,3 +133,18 @@ body {
     opacity: 0;
   }
 }
+
+/* Custom rotating conic gradient for S-Rank creator profiles */
+@keyframes rotating-conic {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-rotate-conic {
+  animation: rotating-conic 6s linear infinite;
+}
+

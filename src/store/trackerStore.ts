@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { UserProgress, Activity, UserProfile, CommunityPost, Comment, Achievement, Message, Screenshot, SpeedrunChallenge, Game } from '../types';
@@ -15,7 +16,20 @@ interface TrackerState {
   screenshots: Screenshot[];
   challenges: SpeedrunChallenge[];
   
+  // Auth State
+  currentUsername: string | null;
+  accounts: Record<string, { profile: UserProfile; progress: UserProgress; password?: string }>;
+  hasCompletedOnboarding: Record<string, boolean>;
+  hasReadUpdates: Record<string, boolean>;
+
   // Actions
+  login: (username: string, password?: string) => { success: boolean; error?: string };
+  register: (username: string, name: string, email: string, password?: string) => { success: boolean; error?: string };
+  logout: () => void;
+  completeOnboarding: () => void;
+  markUpdatesAsRead: () => void;
+  checkMigration: () => void;
+
   addGame: (gameId: string) => void;
   removeGame: (gameId: string) => void;
   toggleAchievement: (achievementId: string, gameId: string, gameTitle: string, achievementTitle: string, achievementIcon: string) => void;
@@ -104,11 +118,202 @@ const DEFAULT_PROFILE: UserProfile = {
 
 export const useTrackerStore = create<TrackerState>()(
   persist(
-    (set) => ({
-      progress: { ...DEFAULT_PROGRESS },
-      activities: [],
-      profile: { ...DEFAULT_PROFILE },
-      posts: [...INITIAL_POSTS],
+    (setRaw, get) => {
+      const set = (
+        updater:
+          | Partial<TrackerState>
+          | ((state: TrackerState) => Partial<TrackerState> | { [key: string]: any })
+      ) => {
+        setRaw((state: TrackerState) => {
+          const next = typeof updater === 'function' ? updater(state) : updater;
+          
+          const currentUsername = next.currentUsername !== undefined ? next.currentUsername : state.currentUsername;
+          const profile = next.profile !== undefined ? next.profile : state.profile;
+          const progress = next.progress !== undefined ? next.progress : state.progress;
+          let accounts = next.accounts !== undefined ? next.accounts : state.accounts;
+          
+          if (currentUsername && currentUsername !== 'guest') {
+            const existingAccount = accounts[currentUsername] || {};
+            accounts = {
+              ...accounts,
+              [currentUsername]: {
+                ...existingAccount,
+                profile,
+                progress,
+                password: next.accounts?.[currentUsername]?.password ?? existingAccount.password
+              }
+            };
+          }
+          
+          return {
+            ...next,
+            accounts
+          };
+        });
+      };
+
+      const PRESET_COLORS = ['#a855f7', '#6366f1', '#107c10', '#5dc21e', '#e60012', '#ff4b5c', '#fcee0a', '#00f0ff', '#0d9488', '#10b981', '#d946ef', '#f97316'];
+      const getRandomColor = () => PRESET_COLORS[Math.floor(Math.random() * PRESET_COLORS.length)];
+
+      return {
+        // Auth State
+        currentUsername: null,
+        accounts: {},
+        hasCompletedOnboarding: {},
+        hasReadUpdates: {},
+
+        progress: { ...DEFAULT_PROGRESS },
+        activities: [],
+        profile: { ...DEFAULT_PROFILE },
+        posts: [...INITIAL_POSTS],
+
+        // Auth Actions
+        login: (username, password) => {
+          const sanitizedUsername = username.trim().toLowerCase();
+          const accounts = get().accounts;
+          
+          let activeAccounts = { ...accounts };
+          if (Object.keys(activeAccounts).length === 0 && get().profile?.username) {
+            activeAccounts = {
+              [get().profile.username]: {
+                profile: get().profile,
+                progress: get().progress,
+                password: 'Meganvdw01'
+              }
+            };
+          }
+
+          const account = activeAccounts[sanitizedUsername];
+          if (!account) {
+            return { success: false, error: 'Account not found. Please register.' };
+          }
+          if (account.password && account.password !== password) {
+            return { success: false, error: 'Incorrect password.' };
+          }
+          
+          set({
+            currentUsername: sanitizedUsername,
+            profile: account.profile,
+            progress: account.progress,
+            accounts: activeAccounts
+          });
+          return { success: true };
+        },
+
+        register: (username, name, email, password) => {
+          const sanitizedUsername = username.trim().toLowerCase();
+          const accounts = get().accounts;
+          if (accounts[sanitizedUsername]) {
+            return { success: false, error: 'Username is already taken.' };
+          }
+          
+          const newProfile: UserProfile = {
+            ...DEFAULT_PROFILE,
+            name,
+            username: sanitizedUsername,
+            avatarUrl: `linear-gradient(135deg, ${getRandomColor()} 0%, ${getRandomColor()} 100%)`,
+            bio: 'New hunter in the EndGame community!',
+            primaryColor: '#a855f7',
+            secondaryColor: '#6366f1',
+            themePreset: 'Nebula Purple',
+            clanTag: '',
+            bgPattern: 'clean',
+            avatarFrame: 'none',
+            streakRewards: [],
+            showcasedAchievements: [],
+          };
+          
+          const newProgress: UserProgress = {
+            ...DEFAULT_PROGRESS,
+            ownedGames: [],
+            unlockedAchievements: {},
+            achievementNotes: {},
+            favoriteGames: [],
+            pinnedGames: [],
+            backlogGames: [],
+            wishlistGames: [],
+            playtimes: {},
+            activeHunting: [],
+            completionGoals: {},
+            streakCount: 0,
+          };
+
+          set((state: any) => ({
+            accounts: {
+              ...state.accounts,
+              [sanitizedUsername]: {
+                profile: newProfile,
+                progress: newProgress,
+                password
+              }
+            },
+            currentUsername: sanitizedUsername,
+            profile: newProfile,
+            progress: newProgress,
+            hasCompletedOnboarding: {
+              ...(state.hasCompletedOnboarding || {}),
+              [sanitizedUsername]: false
+            }
+          }));
+
+          return { success: true };
+        },
+
+        logout: () => {
+          set({
+            currentUsername: null,
+            profile: {
+              ...DEFAULT_PROFILE,
+              name: 'Guest Player',
+              username: 'guest',
+              avatarUrl: 'linear-gradient(135deg, #71717a 0%, #3f3f46 100%)',
+              bio: 'Sign in to customize your profile, sync with Steam, and save achievements.',
+              avatarFrame: 'none',
+            },
+            progress: {
+              ...DEFAULT_PROGRESS,
+              ownedGames: [],
+              unlockedAchievements: {},
+            }
+          });
+        },
+
+        completeOnboarding: () => {
+          const username = get().currentUsername;
+          if (!username) return;
+          set((state: any) => ({
+            hasCompletedOnboarding: {
+              ...(state.hasCompletedOnboarding || {}),
+              [username]: true
+            }
+          }));
+        },
+
+        markUpdatesAsRead: () => {
+          const username = get().currentUsername || 'guest';
+          set((state: any) => ({
+            hasReadUpdates: {
+              ...(state.hasReadUpdates || {}),
+              [username]: true
+            }
+          }));
+        },
+
+        checkMigration: () => {
+          const accounts = get().accounts;
+          if (Object.keys(accounts || {}).length === 0 && get().profile?.username) {
+            const defaultUsername = get().profile.username;
+            set((state: any) => ({
+              accounts: {
+                [defaultUsername]: {
+                  profile: state.profile,
+                  progress: state.progress,
+                  password: 'Meganvdw01'
+                }
+              }
+            }));
+          }
+        },
       messages: {
         'arthur_morgan': [
           { id: 'm1', sender: 'arthur_morgan', text: 'Hey Megan, heard you were trying to 100% Elden Ring. Need any help with Malenia?', timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
@@ -589,8 +794,10 @@ export const useTrackerStore = create<TrackerState>()(
         const isUnlocked = unlockedBaseIds.has(baseIdToToggle);
 
         // Deduplicate and filter current showcased achievements
-        const current = Array.from(new Set(state.profile.showcasedAchievements || []))
-          .filter(id => unlockedBaseIds.has(getBaseId(id)));
+        const showcasedList = (state.profile.showcasedAchievements || []) as string[];
+        const current = showcasedList.filter(
+          (id, index, self) => self.indexOf(id) === index && unlockedBaseIds.has(getBaseId(id))
+        );
 
         // If the achievement being toggled is not unlocked, we cannot showcase it.
         if (!isUnlocked) {
@@ -631,10 +838,12 @@ export const useTrackerStore = create<TrackerState>()(
           unlockedBaseIds.add(getBaseId(id));
         });
 
-        const validShowcase = Array.from(new Set(state.profile.showcasedAchievements || []))
-          .filter(id => unlockedBaseIds.has(getBaseId(id)));
+        const showcasedList = (state.profile.showcasedAchievements || []) as string[];
+        const validShowcase = showcasedList.filter(
+          (id, index, self) => self.indexOf(id) === index && unlockedBaseIds.has(getBaseId(id))
+        );
 
-        if (validShowcase.length !== (state.profile.showcasedAchievements || []).length) {
+        if (validShowcase.length !== showcasedList.length) {
           return {
             profile: {
               ...state.profile,
@@ -924,9 +1133,10 @@ export const useTrackerStore = create<TrackerState>()(
           bgPattern: pattern
         }
       })),
-    }),
-    {
-      name: 'steam-achievement-hunter-storage',
-    }
-  )
+    };
+  },
+  {
+    name: 'steam-achievement-hunter-storage',
+  }
+)
 );
